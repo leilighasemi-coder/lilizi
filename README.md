@@ -1,2 +1,6 @@
-# lilizi
-Lilizi Accounting and Stock Management System
+# Lilizi
+
+اپ ثبت فروش، ورود کالا، هزینه و پرداخت لیلیزی. اطلاعات در گوگل‌شیت «Lilizi - حسابداری و موجودی» ذخیره می‌شود و این صفحه فقط ظاهر اپ است.
+
+- آدرس اپ: https://leilighasemi-coder.github.io/lilizi/
+- سرور: Google Apps Script متصل به همان شیت (فایل Code.gs داخل خود شیت، نه این ریپازیتوری)
