@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Lilizi</title>
-<meta name="theme-color" content="#8c3d5e">
+<meta name="theme-color" content="#502163">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Lilizi">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
   :root{
-    --bg:#f7f3f1; --card:#fff; --ink:#2b2226; --muted:#8a7d82; --line:#ece4e1;
-    --brand:#8c3d5e; --brand-soft:#f3e6ec; --ok:#2f7a55; --warn:#b7791f; --bad:#b4413c;
+    --bg:#f4f5fb; --card:#fff; --ink:#2a1934; --muted:#7f7489; --line:#e4e2ee;
+    --brand:#502163; --brand-soft:#edf0f9; --accent:#f7aa4d; --ok:#2f7a55; --warn:#b7791f; --bad:#b4413c;
     --r:14px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -26,7 +26,8 @@
 
   header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(14px + env(safe-area-inset-top)) 16px 0}
   .top{display:flex;align-items:center;justify-content:space-between}
-  .logo{font-weight:800;font-size:20px;color:var(--brand);letter-spacing:.5px}
+  .logo{font-weight:800;font-size:20px;color:var(--brand);letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+  .logo img{width:34px;height:34px}
   .who{font-size:13px;color:var(--muted)}
   .who button{border:0;background:none;color:var(--brand);padding:0 6px;cursor:pointer}
   #reload{font-size:18px;vertical-align:middle}
@@ -34,7 +35,7 @@
   nav::-webkit-scrollbar{display:none}
   nav button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);border-radius:999px;
     padding:7px 14px;cursor:pointer;white-space:nowrap}
-  nav button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  nav button.on{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:inset 0 -3px 0 var(--accent)}
 
   main{padding:4px 16px 110px;max-width:720px;margin:0 auto}
   h2{font-size:16px;margin:18px 2px 10px}
@@ -68,7 +69,7 @@
   .search{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);
     margin-bottom:10px}
   .fab{position:fixed;left:18px;bottom:22px;z-index:6;background:var(--brand);color:#fff;border:0;
-    border-radius:999px;padding:14px 20px;font-weight:700;box-shadow:0 6px 18px rgba(140,61,94,.35);cursor:pointer}
+    border-radius:999px;padding:14px 20px;font-weight:700;box-shadow:0 6px 18px rgba(80,33,99,.35);cursor:pointer}
   .empty{text-align:center;color:var(--muted);padding:30px 0}
 
   .sheet-bg{position:fixed;inset:0;background:rgba(30,20,25,.35);z-index:20;display:flex;align-items:flex-end;
@@ -101,7 +102,7 @@
 
 <!-- ورود -->
 <div id="login" class="login hidden">
-  <div class="logo">Lilizi</div>
+  <div class="logo" style="flex-direction:column"><img src="icons/icon-512.png" alt="" style="width:110px;height:110px">Lilizi</div>
   <label>نام شما</label>
   <input id="lgUser" class="in" placeholder="مثلاً بهناز" list="lgNames">
   <datalist id="lgNames"><option value="لیلی"><option value="بهناز"></datalist>
@@ -114,7 +115,7 @@
 <div id="app" class="hidden">
   <header>
     <div class="top">
-      <div class="logo">Lilizi</div>
+      <div class="logo"><img src="icons/icon-192.png" alt="">Lilizi</div>
       <div class="who"><button id="reload" title="به‌روزرسانی">↻</button><span id="whoName"></span><button id="logout">خروج</button></div>
     </div>
     <nav id="nav"></nav>
