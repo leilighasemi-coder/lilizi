@@ -96,6 +96,15 @@
   .toast.err{background:var(--bad)}
   .loading{text-align:center;color:var(--muted);padding:40px 0}
   table.mt{width:100%;border-collapse:collapse;font-size:14px}
+  .row .lab{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+  .row .lab .pill{margin:0}
+  .info{background:var(--brand-soft);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--ink);margin-bottom:10px;line-height:1.8}
+  .link-btn{display:block;width:100%;border:1px dashed var(--brand);color:var(--brand);background:var(--card);
+    border-radius:12px;padding:10px;margin-bottom:10px;cursor:pointer;font-weight:600}
+  .an p{margin:0 0 10px;line-height:1.9}
+  .an p:last-child{margin-bottom:0}
+  .an .w{color:var(--warn)}
+  .an b{direction:ltr;unicode-bidi:isolate}
 </style>
 </head>
 <body>
@@ -144,6 +153,17 @@ const store = {
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const enDigits = s => String(s==null?'':s).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+// عدد منفی یا داخل پرانتز → «▼ −۱۲۳» قرمز
+const fmtX = x => {
+  const s = String(x==null?'':x).trim();
+  let m = s.match(/^\((.+)\)$/) || s.match(/^-(\d.*)$/);
+  return m ? {t:'▼ −' + m[1], neg:true} : {t:s || '—', neg:false};
+};
+const valSpan = x => { const f = fmtX(x); return `<span class="v ${f.neg?'neg':''}">${esc(f.t)}</span>`; };
+// متن گزارش (مثل "1,234" یا "(1,234)" یا "-") → عدد
+const num = x => { if (typeof x === 'number') return x; const s = enDigits(x).trim(); if (!s || s==='-' || s==='—') return 0;
+  const neg = /^\(.*\)$/.test(s) || /^-/.test(s); const n = Number(s.replace(/[^\d.]/g,'')) || 0; return neg ? -n : n; };
+const fmtN = n => { n = Math.round(n); return n < 0 ? '▼ −' + (-n).toLocaleString('en-US') : n.toLocaleString('en-US'); };
 const money = n => { const x = Number(n); if (n === '' || n == null || isNaN(x)) return n || '—'; return x.toLocaleString('en-US'); };
 
 const API = 'https://script.google.com/macros/s/AKfycbxPTuvwTDmGTcbregDG7tCOs1hCqsiIF9-FYHIPJaUYNWpvAESdNoNbYwYFkJMLRPfUNQ/exec';
@@ -295,7 +315,7 @@ function go(tab){ S.tab = tab; S.q = ''; render(); window.scrollTo(0,0); }
 async function render(){
   $('nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === S.tab));
   const fab = $('fab');
-  fab.classList.toggle('hidden', !F[S.tab]);
+  fab.classList.toggle('hidden', !F[S.tab] || S.tab === 'product');
   fab.onclick = () => openForm(S.tab);
   const v = $('view');
 
@@ -325,7 +345,7 @@ async function renderHome(){
       <div class="card stat"><div class="l">موجودی</div><div class="v">${s.out} <span style="font-size:13px">تمام‌شده</span></div><div class="s">${s.low} مدل رو به اتمام</div></div>
     </div>
     <h2>حساب‌ها</h2>
-    <div class="card">${s.figures.map(([l,x]) => `<div class="row"><span>${esc(l)}</span><span class="v ${/^\(|^-\d/.test(x)?'neg':''}">${esc(x||'—')}</span></div>`).join('')}</div>
+    <div class="card">${s.figures.map(([l,x]) => `<div class="row"><span>${esc(l)}</span>${valSpan(x)}</div>`).join('')}</div>
     <div class="note">مبالغ به تومان · برای دیدن اعداد تازه، صفحه را پایین بکشید یا دوباره باز کنید.</div>`;
 }
 
@@ -343,14 +363,17 @@ function renderList(){
         <div class="amt">${esc(c.a)}</div>
       </div>
       <div class="acts">
-        <button data-e="${o.row}">ویرایش</button>
-        <button class="del" data-d="${o.row}">حذف</button>
+        <button data-e="${o.row}">${S.tab==='product' ? 'ویرایش قیمت / مشخصات' : 'ویرایش'}</button>
+        ${S.tab==='product' ? '' : `<button class="del" data-d="${o.row}">حذف</button>`}
       </div></div>`;
   }).join('');
   $('view').innerHTML = `
-    <h2>${f.title} <span style="color:var(--muted);font-weight:400;font-size:13px">(${rows.length})</span></h2>
+    <h2>${S.tab==='product' ? 'موجودی کالا' : f.title} <span style="color:var(--muted);font-weight:400;font-size:13px">(${rows.length})</span></h2>
+    ${S.tab==='product' ? `<div class="info">این صفحه فقط گزارش موجودی است و خودکار از «ورود کالا» منهای «فروش» حساب می‌شود.<br>برای اضافه کردن تعداد، به صفحهٔ «ورود کالا» بروید. مدل یا کد جدید هم از همان‌جا تعریف می‌شود.</div>` : ''}
+    ${S.tab==='stockIn' ? `<button class="link-btn" id="newProd">+ تعریف مدل / کد محصول جدید</button><div class="hint" style="margin:-4px 2px 10px">فقط وقتی مدل، رنگ یا سایزی هنوز در فهرست نیست. بعد از تعریف، تعدادش را با «ثبت جدید» همین صفحه وارد کنید.</div>` : ''}
     <input class="search" id="q" placeholder="جستجو…" value="${esc(S.q)}">
     ${list || '<div class="empty">چیزی ثبت نشده</div>'}`;
+  if ($('newProd')) $('newProd').onclick = () => openForm('product');
   const qi = $('q');
   qi.oninput = () => { S.q = qi.value; const pos = qi.selectionStart; renderList(); const n=$('q'); n.focus(); n.setSelectionRange(pos,pos); };
   $('view').querySelectorAll('[data-e]').forEach(b => b.onclick = () => openForm(S.tab, Number(b.dataset.e)));
@@ -386,7 +409,7 @@ function openForm(form, row){
     return lab + `<input class="in" id="f_${fd.k}" value="${esc(val)}" ${ro}>` + hint;
   }).join('');
 
-  $('sheet').innerHTML = `<h3>${o ? 'ویرایش' : 'ثبت'} ${f.title}</h3>${html}
+  $('sheet').innerHTML = `<h3>${o ? 'ویرایش' : (form==='product' ? 'تعریف' : 'ثبت')} ${f.title}</h3>${form==='product' && !o ? '<div class="hint">تعداد این محصول را بعد از ذخیره در «ورود کالا» ثبت کنید.</div>' : ''}${html}
     <div class="btns"><button class="btn s" id="fCancel">انصراف</button><button class="btn p" id="fSave">ذخیره</button></div>`;
   $('modal').classList.remove('hidden');
 
@@ -461,7 +484,7 @@ async function renderAccounts(){
         if (!row.length) return '';
         if (row.length === 1) return row[0].length > 40 ? `<div class="note">${esc(row[0])}</div>` : `<div class="row sec">${esc(row[0])}</div>`;
         const x = row[row.length-1];
-        return `<div class="row"><span>${esc(row[0])}</span><span class="v ${/^\(|^-\d/.test(x)?'neg':''}">${esc(x)}</span></div>`;
+        return `<div class="row"><span>${esc(row[0])}</span>${valSpan(x)}</div>`;
       }).join('')}</div>`).join('');
   } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
@@ -470,26 +493,154 @@ async function renderMonthly(){
   const v = $('view');
   v.innerHTML = '<div class="loading">در حال بارگذاری…</div>';
   try {
-    const t = (await call('monthly')).table;
+    const safe = p => p.catch(() => null);
+    const [mr, sr, pr, ir, ar] = await Promise.all([
+      call('monthly'), safe(call('list',{form:'sale'})), safe(call('list',{form:'payment'})),
+      safe(call('list',{form:'stockIn'})), safe(call('accounts'))
+    ]);
+    const t = mr.table;
     const hi = t.findIndex(r => r[0] === 'ماه');
     if (hi < 0) throw new Error('جدول گزارش ماهانه پیدا نشد');
     const months = t[hi].slice(1).filter(Boolean);
     const cur = (S.init && S.init.summary.month) || months[0];
+    const ctx = buildCtx(t, hi, sr && sr.rows, pr && pr.rows, ir && ir.rows, ar && ar.sections);
     const draw = m => {
       const ci = t[hi].indexOf(m);
       $('mBody').innerHTML = t.slice(hi+1).map(r => {
         if (!r[0]) return '';
         if (r.slice(1).every(x => !x)) return `<div class="row sec">${esc(r[0])}</div>`;
-        const x = r[ci];
-        return `<div class="row"><span>${esc(r[0])}</span><span class="v ${/^\(|^-\d/.test(x)?'neg':''}">${esc(x)}</span></div>`;
+        const tag = settleTag(ctx, r[0], m, num(r[ci]));
+        return `<div class="row"><span class="lab">${esc(r[0])}${tag}</span>${valSpan(r[ci])}</div>`;
       }).join('');
+      $('mAn').innerHTML = analysis(ctx, m);
     };
     v.innerHTML = `<h2>گزارش ماهانه</h2>
       <select class="in" id="mSel" style="margin-bottom:10px">${months.map(m => `<option ${m===cur?'selected':''}>${esc(m)}</option>`).join('')}</select>
-      <div class="card" id="mBody"></div>`;
+      <div class="card" id="mBody"></div>
+      <div class="note">✓ تسویه شد · ◐ بخشی تسویه شده · ⏳ هنوز پرداخت نشده. پرداخت‌ها به ترتیب از قدیمی‌ترین ماه حساب می‌شوند.</div>
+      <h2>تحلیل این ماه</h2>
+      <div class="card an" id="mAn"></div>`;
     $('mSel').onchange = () => draw($('mSel').value);
     draw(months.includes(cur) ? cur : months[0]);
   } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+/* داده‌های لازم برای وضعیت تسویه و تحلیل */
+function buildCtx(t, hi, sales, pays, ins, secs){
+  const head = t[hi];
+  const row = key => t.find(r => r[0] && r[0].trim() === key) || t.find(r => r[0] && r[0].includes(key));
+  const get = (key, m) => { const r = row(key), ci = head.indexOf(m); return r && ci > 0 ? num(r[ci]) : 0; };
+  const months = head.slice(1).filter(Boolean);
+  const mOf = d => String(d||'').slice(0,7);
+  const prods = {}; (S.lists.product || []).forEach(p => prods[p.v.code] = p);
+  sales = sales || []; pays = pays || []; ins = ins || [];
+
+  // نرخ همدانی از خود جدول
+  let rate = 0.3;
+  for (const m of months) { const a = get('فروش کل', m); if (a) { rate = get('سهم همدانی', m) / a; break; } }
+
+  // بدهی هر ماه بر اساس فروش‌ها (شامل ماه‌هایی که در جدول نیستند)
+  const dueH = {}, dueM = {}, saleMonths = new Set();
+  sales.forEach(o => {
+    const m = mOf(o.v.date), amt = num(o.x && o.x.amount), p = prods[o.v.code];
+    saleMonths.add(m);
+    dueH[m] = (dueH[m]||0) + amt * (1 - rate);
+    if (p && p.v.brand === 'BBandLili') dueM[m] = (dueM[m]||0) + num(p.v.mahin) * (num(o.v.qty) || 1);
+  });
+  const paid = party => pays.filter(o => o.v.party === party).reduce((s,o) => s + num(o.v.amount), 0);
+
+  // تخصیص پرداخت‌ها به ماه‌ها به ترتیب (قدیمی‌ترین اول)
+  const fifo = (dues, total, opening) => {
+    let left = total - (opening || 0); const res = {};
+    Object.keys(dues).sort().forEach(m => {
+      const d = dues[m]; if (!d) return;
+      const cov = Math.max(0, Math.min(d, left)); left -= cov; res[m] = {due:d, cov};
+    });
+    return {res, extra: Math.max(0, left)};
+  };
+  const tableDues = key => { const o = {}; months.forEach(m => { const x = get(key, m); if (x > 0) o[m] = x; }); return o; };
+
+  let mahinOpen = 0;
+  (secs || []).forEach(sec => sec.rows.forEach(r => {
+    if (r.length > 1 && /مانده اولیه/.test(r[0]) && /دوره|دوخت/.test(r[0]) && /مهین/.test(sec.title||'')) mahinOpen = num(r[r.length-1]);
+  }));
+
+  // محصولاتی که بهای تمام‌شده ندارند
+  const costed = new Set(ins.filter(o => num(o.v.fabric) || num(o.v.sewing)).map(o => o.v.code));
+
+  return {
+    get, months, rate, sales, prods, costed, saleMonths, mOf,
+    H: fifo(dueH, paid('همدانی')),
+    MB: fifo(dueM, paid('مهین - BBandLili')),
+    MP: fifo(tableDues('بدهی جدید به مهین بابت تولید'), paid('مهین - لیلیزی'), mahinOpen),
+    B: fifo(tableDues('حقوق بهناز'), paid('بهناز - برداشت')),
+    SL: fifo(tableDues('حقوق فروشنده'), paid('حقوق فروشنده')),
+    paidH: paid('همدانی'), dueHtotal: Object.values(dueH).reduce((a,b)=>a+b,0)
+  };
+}
+
+function settleTag(c, label, m, val){
+  if (!val) return '';
+  const pill = (cls, txt) => `<span class="pill ${cls}">${txt}</span>`;
+  const st = (f, who) => {
+    const x = f.res[m]; if (!x) return '';
+    if (x.cov >= x.due - 1) return pill('ok', '✓ تسویه شد');
+    if (x.cov > 0) return pill('low', '◐ ' + fmtN(x.due - x.cov) + ' مانده');
+    return pill('out', '⏳ ' + who);
+  };
+  if (label === 'سهم همدانی') return pill('ok', '✓ همدانی موقع فروش برداشته');
+  if (label.includes('نزد همدانی')) return st(c.H, 'همدانی هنوز واریز نکرده');
+  if (label === 'سهم مهین از فروش BBandLili' || label.includes('مهین بابت BBandLili')) return st(c.MB, 'به مهین پرداخت نشده');
+  if (label.includes('مهین بابت تولید')) return st(c.MP, 'به مهین پرداخت نشده');
+  if (label === 'حقوق بهناز') return st(c.B, 'برداشت ثبت نشده');
+  if (label === 'حقوق فروشنده') return st(c.SL, 'پرداخت ثبت نشده');
+  if (label === 'هزینه‌های جاری') return pill('ok', '✓ پرداخت‌شده');
+  return '';
+}
+
+function analysis(c, m){
+  const g = k => c.get(k, m);
+  const sale = g('فروش کل'), H = g('سهم همدانی'), M = g('سهم مهین از فروش BBandLili'), inc = g('درآمد لیلیزی');
+  const cogs = g('بهای تمام‌شده لباس‌های فروخته‌شده'), gross = g('سود ناخالص'), exp = g('هزینه‌های جاری');
+  const sB = g('حقوق بهناز'), sS = g('حقوق فروشنده'), net = g('سود (زیان) خالص'), shB = g('سهم بهناز از سود');
+  const fixed = exp + sB + sS;
+  const b = n => `<b>${fmtN(n)}</b>`;
+  const P = [];
+  if (!sale && !fixed) return '<p>برای این ماه هنوز چیزی ثبت نشده.</p>';
+
+  P.push(`<p>۱) از ${b(sale)} فروش، ${b(H)} سهم همدانی و ${b(M)} سهم مهین (لباس‌های BBandLili) کم می‌شود؛ درآمد خود لیلیزی ${b(inc)} است.</p>`);
+  P.push(`<p>۲) بهای تمام‌شدهٔ لباس‌های لیلیزی فروخته‌شده ${b(cogs)} است، پس سود ناخالص ${b(gross)} می‌ماند${sale ? ` (یعنی از هر ۱۰۰ تومان فروش، حدود ${Math.round(gross/sale*100)} تومان)` : ''}.</p>`);
+  P.push(`<p>۳) هزینه‌های ثابت ماه ${b(fixed)} است: حقوق بهناز ${b(sB)}، حقوق فروشنده ${b(sS)} و هزینه‌های جاری ${b(exp)}.</p>`);
+  if (net < 0) {
+    P.push(`<p>۴) <b class="neg">${fmtN(net)}</b> زیان یعنی سود ناخالص (${b(gross)}) کمتر از هزینه‌های ثابت (${b(fixed)}) بوده؛ ${b(-net)} کسری است. ${sB+sS ? `حقوق‌ها (${b(sB+sS)}) به‌تنهایی ${gross ? (Math.round((sB+sS)/gross*10)/10) + ' برابر سود ناخالص است' : 'بیشتر از سود ناخالص است'}.` : ''}</p>`);
+  } else {
+    P.push(`<p>۴) سود ناخالص از هزینه‌های ثابت بیشتر بوده، پس ${b(net)} سود خالص مانده.</p>`);
+  }
+  if (gross > 0 && sale) {
+    const be = fixed / (gross / sale);
+    P.push(`<p>۵) نقطهٔ سر به سر: با همین ترکیب فروش، برای پوشش هزینه‌های ثابت فروش ماهانه باید حدود ${b(Math.ceil(be/100000)*100000)} باشد (این ماه ${b(sale)}).</p>`);
+  }
+  if (sB) P.push(`<p>۶) حقوق بهناز هم هزینهٔ شرکت حساب می‌شود و هم بهناز ۵۰٪ سود/زیان را دارد. پس نتیجهٔ این ماه برای بهناز: حقوق ${b(sB)} ${shB<0?'منهای سهم زیان '+b(-shB):'به‌اضافهٔ سهم سود '+b(shB)} = ${b(sB+shB)}؛ برای لیلی فقط سهم ${shB<0?'زیان':'سود'}: ${b(net - shB)}.</p>`);
+
+  // هشدارها
+  const W = [];
+  const ms = c.sales.filter(o => c.mOf(o.v.date) === m);
+  const noCost = [...new Set(ms.filter(o => { const p = c.prods[o.v.code]; return p && p.v.brand !== 'BBandLili' && !c.costed.has(o.v.code); })
+    .map(o => o.v.name || o.v.code))];
+  if (noCost.length) W.push(`بهای تمام‌شدهٔ این لباس‌ها ثبت نشده و صفر حساب شده، پس سود واقعی کمتر از این است: ${noCost.map(esc).join('، ')}. هزینهٔ پارچه و دوخت را در «ورود کالا» وارد کنید.`);
+  const noBrand = [...new Set(ms.filter(o => { const p = c.prods[o.v.code]; return p && !p.v.brand; }).map(o => o.v.name || o.v.code))];
+  if (noBrand.length) W.push(`برند این محصولات خالی است و لیلیزی فرض شده: ${noBrand.map(esc).join('، ')}.`);
+  const noMahin = [...new Set(ms.filter(o => { const p = c.prods[o.v.code]; return p && p.v.brand === 'BBandLili' && !num(p.v.mahin); }).map(o => o.v.name || o.v.code))];
+  if (noMahin.length) W.push(`قیمت اعلامی مهین برای این لباس‌های BBandLili ثبت نشده: ${noMahin.map(esc).join('، ')}.`);
+  const today = (S.init && S.init.today) || '';
+  if (S.init && S.init.summary.month === m && sB + sS) W.push(`این ماه هنوز تمام نشده (امروز ${esc(today)}) ولی حقوق کامل ماه کم شده؛ عدد نهایی با فروش‌های باقی‌ماندهٔ ماه بهتر می‌شود.`);
+  const extra = c.paidH - c.dueHtotal;
+  if (extra > 1000) W.push(`همدانی ${fmtN(extra)} بیشتر از سهم فروش‌های ثبت‌شده واریز کرده؛ احتمالاً بخشی از فروش‌ها (مثلاً شهریور یا مهر) ثبت نشده.`);
+  const outside = [...c.saleMonths].filter(x => x && !c.months.includes(x)).sort();
+  if (outside.length) W.push(`فروش‌های ماه ${outside.map(esc).join('، ')} در این جدول نیست ولی در حساب همدانی و مهین حساب شده.`);
+  if (c.SL.res[m] && c.SL.res[m].cov < c.SL.res[m].due) W.push('اگر حقوق فروشنده پرداخت شده، آن را در «پرداخت» با طرف حساب «حقوق فروشنده» ثبت کنید تا موجودی نقد درست شود.');
+  if (W.length) P.push('<p class="w">⚠︎ نکته‌ها:</p>' + W.map(w => `<p class="w">• ${w}</p>`).join(''));
+  return P.join('');
 }
 
 $('reload').onclick = () => { toast('در حال به‌روزرسانی…'); refresh(); };
