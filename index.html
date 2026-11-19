@@ -98,6 +98,8 @@
   table.mt{width:100%;border-collapse:collapse;font-size:14px}
   .row .lab{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
   .row .lab .pill{margin:0}
+  .np{border:1px solid var(--accent);background:#fffaf2;border-radius:12px;padding:4px 12px 12px;margin-top:8px}
+  .np .t{font-weight:700;color:var(--brand);margin-top:8px}
   .info{background:var(--brand-soft);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--ink);margin-bottom:10px;line-height:1.8}
   .link-btn{display:block;width:100%;border:1px dashed var(--brand);color:var(--brand);background:var(--card);
     border-radius:12px;padding:10px;margin-bottom:10px;cursor:pointer;font-weight:600}
@@ -370,7 +372,7 @@ function renderList(){
   $('view').innerHTML = `
     <h2>${S.tab==='product' ? 'موجودی کالا' : f.title} <span style="color:var(--muted);font-weight:400;font-size:13px">(${rows.length})</span></h2>
     ${S.tab==='product' ? `<div class="info">این صفحه فقط گزارش موجودی است و خودکار از «ورود کالا» منهای «فروش» حساب می‌شود.<br>برای اضافه کردن تعداد، به صفحهٔ «ورود کالا» بروید. مدل یا کد جدید هم از همان‌جا تعریف می‌شود.</div>` : ''}
-    ${S.tab==='stockIn' ? `<button class="link-btn" id="newProd">+ تعریف مدل / کد محصول جدید</button><div class="hint" style="margin:-4px 2px 10px">فقط وقتی مدل، رنگ یا سایزی هنوز در فهرست نیست. بعد از تعریف، تعدادش را با «ثبت جدید» همین صفحه وارد کنید.</div>` : ''}
+    ${S.tab==='stockIn' ? `<button class="link-btn" id="newProd">+ تعریف مدل / کد محصول جدید</button><div class="hint" style="margin:-4px 2px 10px">فقط تعریف مدل، بدون تعداد. برای تعریف و ثبت تعداد با هم، «ثبت جدید» را بزنید و در فرم «+ محصول جدید» را انتخاب کنید.</div>` : ''}
     <input class="search" id="q" placeholder="جستجو…" value="${esc(S.q)}">
     ${list || '<div class="empty">چیزی ثبت نشده</div>'}`;
   if ($('newProd')) $('newProd').onclick = () => openForm('product');
@@ -385,28 +387,64 @@ function productLabel(p){
   return p.v.code + ' — ' + [p.v.name, p.v.color, p.v.size].filter(Boolean).join(' ') + ' (موجودی ' + p.x.stock + ')';
 }
 
+/* یک فیلد فرم (id جدا تا فیلدهای محصول جدید داخل فرم ورود کالا هم با همین ساخته شوند) */
+function fieldHtml(fd, val, editing, id){
+  const opts = S.init.options;
+  const lab = `<label>${fd.l}${fd.opt ? ' <span style="opacity:.7">(اختیاری)</span>' : ''}</label>`;
+  const hint = fd.hint ? `<div class="hint">${fd.hint}</div>` : '';
+  if (fd.t === 'date') return lab +
+    `<input class="in" id="${id}" value="${esc(val)}" inputmode="numeric" placeholder="1405/08/26" dir="ltr">
+     <div class="chips"><button type="button" data-d="${S.init.today}">امروز</button><button type="button" data-d="${S.init.yesterday}">دیروز</button></div>`;
+  if (fd.t === 'select') return lab +
+    `<select class="in" id="${id}"><option value="">${fd.opt ? '—' : 'انتخاب کنید'}</option>${(opts[fd.opts]||[]).map(x => `<option ${x===val?'selected':''}>${esc(x)}</option>`).join('')}</select>` + hint;
+  if (fd.t === 'product') {
+    const p = (S.lists.product || []).find(p => p.v.code === val);
+    return lab + `<input class="in" id="${id}" list="dlProducts" value="${esc(p ? productLabel(p) : val)}" placeholder="کد یا نام محصول را بنویسید">
+      <datalist id="dlProducts">${(S.lists.product||[]).map(p => `<option value="${esc(productLabel(p))}">`).join('')}</datalist>
+      <div class="hint" id="pInfo"></div>`;
+  }
+  const ro = (editing && fd.lockOnEdit) ? 'readonly style="background:var(--bg)"' : '';
+  if (fd.t === 'num') return lab + `<input class="in" id="${id}" value="${esc(val===''?'':money(val))}" inputmode="numeric" dir="ltr" ${ro}>` + hint;
+  return lab + `<input class="in" id="${id}" value="${esc(val)}" ${ro}>` + hint;
+}
+
+/* بخش «محصول جدید» داخل فرم ورود کالا */
+function newProdBox(){
+  return `<button type="button" class="link-btn" id="npToggle" style="margin-top:8px">+ محصول جدید (در فهرست نیست)</button>
+    <div class="np hidden" id="npBox"><div class="t">مشخصات محصول جدید</div>
+    ${F.product.fields.map(fd => fieldHtml(fd, '', false, 'np_' + fd.k)).join('')}
+    <div class="hint">با «ذخیره»، محصول تعریف می‌شود و همین تعداد هم برایش ثبت می‌شود.</div></div>`;
+}
+function npOn(){ const b = $('npBox'); return !!b && !b.classList.contains('hidden'); }
+function setNp(on, code){
+  const box = $('npBox'); if (!box) return;
+  box.classList.toggle('hidden', !on);
+  const pi = $('f_code');
+  pi.disabled = on; pi.style.opacity = on ? '.45' : '';
+  $('npToggle').textContent = on ? '× انصراف از محصول جدید (انتخاب از فهرست)' : '+ محصول جدید (در فهرست نیست)';
+  if (on) {
+    // متنی که در فیلد محصول نوشته شده: اگر شبیه کد بود در «کد»، وگرنه در «نام مدل»
+    const isCode = code && /^[A-Z0-9][A-Z0-9\-_ ]*$/.test(code);
+    if (code) $(isCode ? 'np_code' : 'np_name').value = isCode ? code.replace(/ /g,'-') : pi.value.trim();
+    $('pInfo').textContent = ''; $(isCode ? 'np_name' : 'np_code').focus();
+  }
+  npBrand();
+}
+function npBrand(){
+  const m = $('np_mahin'); if (!m) return;
+  const show = $('np_brand').value === 'BBandLili';
+  m.style.display = show ? '' : 'none';
+  m.previousElementSibling.style.display = show ? '' : 'none';
+}
+
 function openForm(form, row){
   const f = F[form];
   const o = row ? (S.lists[form] || []).find(x => x.row === row) : null;
-  const opts = S.init.options;
   const html = f.fields.map(fd => {
     const val = o ? (o.v[fd.k] ?? '') : (fd.def ?? (fd.t === 'date' ? S.init.today : ''));
-    const lab = `<label>${fd.l}${fd.opt ? ' <span style="opacity:.7">(اختیاری)</span>' : ''}</label>`;
-    const hint = fd.hint ? `<div class="hint">${fd.hint}</div>` : '';
-    if (fd.t === 'date') return lab +
-      `<input class="in" id="f_${fd.k}" value="${esc(val)}" inputmode="numeric" placeholder="1405/08/26" dir="ltr">
-       <div class="chips"><button type="button" data-d="${S.init.today}">امروز</button><button type="button" data-d="${S.init.yesterday}">دیروز</button></div>`;
-    if (fd.t === 'select') return lab +
-      `<select class="in" id="f_${fd.k}"><option value="">${fd.opt ? '—' : 'انتخاب کنید'}</option>${opts[fd.opts].map(x => `<option ${x===val?'selected':''}>${esc(x)}</option>`).join('')}</select>` + hint;
-    if (fd.t === 'product') {
-      const p = (S.lists.product || []).find(p => p.v.code === val);
-      return lab + `<input class="in" id="f_${fd.k}" list="dlProducts" value="${esc(p ? productLabel(p) : val)}" placeholder="کد یا نام محصول را بنویسید">
-        <datalist id="dlProducts">${(S.lists.product||[]).map(p => `<option value="${esc(productLabel(p))}">`).join('')}</datalist>
-        <div class="hint" id="pInfo"></div>`;
-    }
-    const ro = (o && fd.lockOnEdit) ? 'readonly style="background:var(--bg)"' : '';
-    if (fd.t === 'num') return lab + `<input class="in" id="f_${fd.k}" value="${esc(val===''?'':money(val))}" inputmode="numeric" dir="ltr" ${ro}>` + hint;
-    return lab + `<input class="in" id="f_${fd.k}" value="${esc(val)}" ${ro}>` + hint;
+    let h = fieldHtml(fd, val, !!o, 'f_' + fd.k);
+    if (fd.t === 'product' && form === 'stockIn' && !o) h += newProdBox();
+    return h;
   }).join('');
 
   $('sheet').innerHTML = `<h3>${o ? 'ویرایش' : (form==='product' ? 'تعریف' : 'ثبت')} ${f.title}</h3>${form==='product' && !o ? '<div class="hint">تعداد این محصول را بعد از ذخیره در «ورود کالا» ثبت کنید.</div>' : ''}${html}
@@ -425,9 +463,19 @@ function openForm(form, row){
   if (pi && f.fields.find(x => x.t === 'product')) {
     const info = () => {
       const code = codeFrom(pi.value), p = (S.lists.product||[]).find(p => p.v.code === code);
-      $('pInfo').textContent = p ? `قیمت فهرست ${money(p.v.price)} · موجودی ${p.x.stock} · ${p.v.brand}` : '';
+      const el = $('pInfo');
+      if (p) el.textContent = `قیمت فهرست ${money(p.v.price)} · موجودی ${p.x.stock} · ${p.v.brand}`;
+      else if (code && $('npBox') && !npOn()) {
+        el.innerHTML = `این کد در فهرست نیست. <button type="button" class="link-btn" id="npQuick" style="display:inline;width:auto;padding:2px 10px;margin:0">ثبت به‌عنوان محصول جدید</button>`;
+        $('npQuick').onclick = () => setNp(true, code);
+      } else el.textContent = '';
     };
     pi.addEventListener('input', info); info();
+  }
+  if ($('npToggle')) {
+    $('npToggle').onclick = () => setNp(!npOn());
+    $('np_brand').onchange = npBrand; npBrand();
+    $('np_code').addEventListener('input', () => { const i = $('np_code'), pos = i.selectionStart; i.value = enDigits(i.value).toUpperCase(); i.setSelectionRange(pos, pos); });
   }
   $('fCancel').onclick = closeForm;
   $('fSave').onclick = () => saveForm(form, o ? o.row : null);
@@ -437,7 +485,23 @@ $('modal').onclick = e => { if (e.target.id === 'modal') closeForm(); };
 
 function codeFrom(v){ return enDigits(v).split(' — ')[0].trim().toUpperCase(); }
 
+function readFields(fields, prefix, skip){
+  const data = {};
+  for (const fd of fields) {
+    if (skip && skip(fd)) continue;
+    let v = $(prefix + fd.k).value;
+    if (fd.t === 'product') v = codeFrom(v);
+    if (fd.t === 'num') v = enDigits(v).replace(/[^\d.]/g, '');
+    if (fd.t === 'date') v = enDigits(v);
+    if (fd.k === 'code') v = enDigits(v).trim().toUpperCase();
+    if (!fd.opt && String(v).trim() === '') { toast(fd.l + ' را وارد کنید', true); return null; }
+    data[fd.k] = v;
+  }
+  return data;
+}
+
 async function saveForm(form, row){
+  if (form === 'stockIn' && !row && npOn()) return saveWithNewProduct();
   const f = F[form], data = {};
   for (const fd of f.fields) {
     let v = $('f_' + fd.k).value;
@@ -455,6 +519,30 @@ async function saveForm(form, row){
   } catch (e) {
     toast(e.message, true); btn.disabled = false; btn.textContent = 'ذخیره';
   }
+}
+
+/* ورود کالا + تعریف محصول جدید در یک مرحله */
+async function saveWithNewProduct(){
+  const prod = readFields(F.product.fields, 'np_'); if (!prod) return;
+  if (prod.brand !== 'BBandLili') prod.mahin = '';
+  if ((S.lists.product || []).some(p => p.v.code === prod.code))
+    return toast('کد ' + prod.code + ' قبلاً ثبت شده؛ آن را از فهرست انتخاب کنید', true);
+  const data = readFields(F.stockIn.fields, 'f_', fd => fd.k === 'code'); if (!data) return;
+  data.code = prod.code;
+  const btn = $('fSave'); btn.disabled = true; btn.textContent = 'در حال ذخیره…';
+  try {
+    await call('save', {form:'product', row:null, data:prod});
+  } catch (e) {
+    toast(e.message, true); btn.disabled = false; btn.textContent = 'ذخیره'; return;
+  }
+  try {
+    await call('save', {form:'stockIn', row:null, data});
+    closeForm(); toast('محصول جدید تعریف و ورود کالا ثبت شد');
+  } catch (e) {
+    closeForm();
+    toast('محصول ' + prod.code + ' تعریف شد ولی ورود کالا ثبت نشد: ' + e.message + ' — دوباره «ثبت جدید» بزنید و آن را از فهرست انتخاب کنید', true);
+  }
+  await refresh();
 }
 
 async function removeRow(form, row){
