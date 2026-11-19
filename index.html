@@ -353,7 +353,7 @@ async function renderHome(){
 
 /* ---------- فهرست‌ها ---------- */
 function renderList(){
-  const f = F[S.tab], rows = (S.lists[S.tab] || []).slice().reverse();
+  const f = F[S.tab], rows = newestFirst(S.lists[S.tab]);
   const q = S.q.trim();
   const shown = q ? rows.filter(o => f.text(o).toLowerCase().includes(q.toLowerCase())) : rows;
   const list = shown.slice(0, 150).map(o => {
@@ -383,6 +383,9 @@ function renderList(){
 }
 
 /* ---------- فرم ---------- */
+/* محصولات به ترتیب جدیدترین اول (ردیف پایین‌تر شیت = جدیدتر) */
+const newestFirst = list => (list || []).slice().sort((a,b) => b.row - a.row);
+
 function productLabel(p){
   return p.v.code + ' — ' + [p.v.name, p.v.color, p.v.size].filter(Boolean).join(' ') + ' (موجودی ' + p.x.stock + ')';
 }
@@ -400,7 +403,7 @@ function fieldHtml(fd, val, editing, id){
   if (fd.t === 'product') {
     const p = (S.lists.product || []).find(p => p.v.code === val);
     return lab + `<input class="in" id="${id}" list="dlProducts" value="${esc(p ? productLabel(p) : val)}" placeholder="کد یا نام محصول را بنویسید">
-      <datalist id="dlProducts">${(S.lists.product||[]).map(p => `<option value="${esc(productLabel(p))}">`).join('')}</datalist>
+      <datalist id="dlProducts">${newestFirst(S.lists.product).map(p => `<option value="${esc(productLabel(p))}">`).join('')}</datalist>
       <div class="hint" id="pInfo"></div>`;
   }
   const ro = (editing && fd.lockOnEdit) ? 'readonly style="background:var(--bg)"' : '';
