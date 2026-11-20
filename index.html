@@ -248,7 +248,7 @@ const F = {
       {k:'amount', l:'مبلغ (تومان)', t:'num'},
       {k:'payer', l:'پرداخت از', t:'select', opts:'payer', def:'حساب لیلیزی', hint:'اگر لیلی یا بهناز از جیب خودشان داده‌اند، به طلبشان از لیلیزی اضافه می‌شود و از حساب لیلیزی کم نمی‌شود.'}
     ],
-    card: o => ({ t:o.v.desc, m:o.v.date + ' · ' + o.v.category + (o.v.payer ? ' · ' + o.v.payer : ''), a:money(o.v.amount) }),
+    card: o => ({ t:o.v.desc, m:o.v.date + ' · ' + o.v.category + (o.v.payer && o.v.payer !== 'حساب لیلیزی' ? ' · از جیب ' + String(o.v.payer).replace(' شخصی','') : ''), a:money(o.v.amount) }),
     text: o => [o.v.date, o.v.desc, o.v.category, o.v.payer].join(' ')
   },
   payment: {
@@ -257,9 +257,10 @@ const F = {
       {k:'date', l:'تاریخ', t:'date'},
       {k:'party', l:'طرف حساب', t:'select', opts:'party'},
       {k:'amount', l:'مبلغ (تومان)', t:'num'},
+      {k:'from', l:'پرداخت از', t:'select', opts:'payer', def:'حساب لیلیزی', opt:true, hint:'فقط برای پرداخت به مهین و حقوق فروشنده. اگر لیلی یا بهناز از جیب خودشان داده‌اند، به طلبشان اضافه می‌شود و از حساب لیلیزی کم نمی‌شود.'},
       {k:'desc', l:'توضیح', t:'text', opt:true}
     ],
-    card: o => ({ t:o.v.party, m:o.v.date + (o.v.desc ? ' · ' + o.v.desc : ''), a:money(o.v.amount) }),
+    card: o => ({ t:o.v.party, m:o.v.date + (o.v.from && o.v.from !== 'حساب لیلیزی' ? ' · از جیب ' + o.v.from.replace(' شخصی','') : '') + (o.v.desc ? ' · ' + o.v.desc : ''), a:money(o.v.amount) }),
     text: o => [o.v.date, o.v.party, o.v.desc].join(' ')
   },
   product: {
