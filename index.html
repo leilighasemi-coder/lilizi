@@ -258,7 +258,7 @@ const F = {
   product: {
     title:'محصول',
     fields:[
-      {k:'code', l:'کد محصول', t:'text', hint:'مثل TRN-YL-XL — بعد از ثبت قابل تغییر نیست', lockOnEdit:true},
+      {k:'code', l:'کد محصول', t:'text', hint:'مثل LZ-001 (Lilizi) یا BB-001 (BBandLili) — بعد از ثبت قابل تغییر نیست', lockOnEdit:true},
       {k:'name', l:'نام مدل', t:'text'},
       {k:'brand', l:'برند', t:'select', opts:'brand'},
       {k:'size', l:'سایز', t:'text', opt:true},
@@ -353,7 +353,7 @@ async function renderHome(){
 
 /* ---------- فهرست‌ها ---------- */
 function renderList(){
-  const f = F[S.tab], rows = (S.lists[S.tab] || []).slice().reverse();
+  const f = F[S.tab], rows = newestFirst(S.lists[S.tab]);
   const q = S.q.trim();
   const shown = q ? rows.filter(o => f.text(o).toLowerCase().includes(q.toLowerCase())) : rows;
   const list = shown.slice(0, 150).map(o => {
@@ -383,6 +383,9 @@ function renderList(){
 }
 
 /* ---------- فرم ---------- */
+/* محصولات به ترتیب جدیدترین اول (ردیف پایین‌تر شیت = جدیدتر) */
+const newestFirst = list => (list || []).slice().sort((a,b) => b.row - a.row);
+
 function productLabel(p){
   return p.v.code + ' — ' + [p.v.name, p.v.color, p.v.size].filter(Boolean).join(' ') + ' (موجودی ' + p.x.stock + ')';
 }
@@ -400,7 +403,7 @@ function fieldHtml(fd, val, editing, id){
   if (fd.t === 'product') {
     const p = (S.lists.product || []).find(p => p.v.code === val);
     return lab + `<input class="in" id="${id}" list="dlProducts" value="${esc(p ? productLabel(p) : val)}" placeholder="کد یا نام محصول را بنویسید">
-      <datalist id="dlProducts">${(S.lists.product||[]).map(p => `<option value="${esc(productLabel(p))}">`).join('')}</datalist>
+      <datalist id="dlProducts">${newestFirst(S.lists.product).map(p => `<option value="${esc(productLabel(p))}">`).join('')}</datalist>
       <div class="hint" id="pInfo"></div>`;
   }
   const ro = (editing && fd.lockOnEdit) ? 'readonly style="background:var(--bg)"' : '';
@@ -412,8 +415,23 @@ function fieldHtml(fd, val, editing, id){
 function newProdBox(){
   return `<button type="button" class="link-btn" id="npToggle" style="margin-top:8px">+ محصول جدید (در فهرست نیست)</button>
     <div class="np hidden" id="npBox"><div class="t">مشخصات محصول جدید</div>
-    ${F.product.fields.map(fd => fieldHtml(fd, '', false, 'np_' + fd.k)).join('')}
+    ${F.product.fields.map(fd => fieldHtml(fd.k === 'code' ? {...fd, hint:'خودکار ساخته می‌شود و تکراری نیست؛ اگر بخواهید می‌توانید خودتان عوضش کنید.'} : fd, '', false, 'np_' + fd.k)).join('')}
     <div class="hint">با «ذخیره»، محصول تعریف می‌شود و همین تعداد هم برایش ثبت می‌شود.</div></div>`;
+}
+/* کد خودکار غیرتکراری: LZ-001 برای Lilizi و BB-001 برای BBandLili */
+function autoCode(brand){
+  const pre = brand === 'BBandLili' ? 'BB' : 'LZ';
+  const re = new RegExp('^' + pre + '-(\\d+)');
+  const used = new Set((S.lists.product || []).map(p => String(p.v.code).toUpperCase()));
+  let n = 0;
+  used.forEach(c => { const m = c.match(re); if (m) n = Math.max(n, Number(m[1])); });
+  let code;
+  do { n++; code = pre + '-' + String(n).padStart(3, '0'); } while (used.has(code));
+  return code;
+}
+function npAuto(force){
+  const i = $('np_code'); if (!i) return;
+  if (force || i.dataset.auto === '1' || !i.value.trim()) { i.value = autoCode($('np_brand').value); i.dataset.auto = '1'; }
 }
 function npOn(){ const b = $('npBox'); return !!b && !b.classList.contains('hidden'); }
 function setNp(on, code){
@@ -426,6 +444,7 @@ function setNp(on, code){
     // متنی که در فیلد محصول نوشته شده: اگر شبیه کد بود در «کد»، وگرنه در «نام مدل»
     const isCode = code && /^[A-Z0-9][A-Z0-9\-_ ]*$/.test(code);
     if (code) $(isCode ? 'np_code' : 'np_name').value = isCode ? code.replace(/ /g,'-') : pi.value.trim();
+    if (isCode) $('np_code').dataset.auto = '0'; else npAuto(true);
     $('pInfo').textContent = ''; $(isCode ? 'np_name' : 'np_code').focus();
   }
   npBrand();
@@ -474,8 +493,9 @@ function openForm(form, row){
   }
   if ($('npToggle')) {
     $('npToggle').onclick = () => setNp(!npOn());
-    $('np_brand').onchange = npBrand; npBrand();
-    $('np_code').addEventListener('input', () => { const i = $('np_code'), pos = i.selectionStart; i.value = enDigits(i.value).toUpperCase(); i.setSelectionRange(pos, pos); });
+    $('np_brand').onchange = () => { npBrand(); npAuto(); };
+    $('np_code').addEventListener('input', () => { const i = $('np_code'), pos = i.selectionStart; i.value = enDigits(i.value).toUpperCase(); i.dataset.auto = '0'; i.setSelectionRange(pos, pos); });
+    $('np_code').addEventListener('blur', () => { if (!$('np_code').value.trim()) npAuto(true); });
   }
   $('fCancel').onclick = closeForm;
   $('fSave').onclick = () => saveForm(form, o ? o.row : null);
