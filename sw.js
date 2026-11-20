@@ -1,5 +1,5 @@
 // فقط ظاهر اپ ذخیره می‌شود؛ اطلاعات همیشه آنلاین از گوگل‌شیت خوانده و نوشته می‌شود.
-const CACHE = 'lilizi-v8';
+const CACHE = 'lilizi-v9';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -15,7 +15,7 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // درخواست‌های گوگل دست نمی‌خورند
   // اول از شبکه (تا نسخهٔ جدید همیشه برسد)، اگر اینترنت نبود از حافظه
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, {cache: 'no-cache'})
       .then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
       .catch(() => caches.match(e.request).then(r => r || caches.match('index.html')))
   );

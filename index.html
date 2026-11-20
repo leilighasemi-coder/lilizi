@@ -246,7 +246,7 @@ const F = {
       {k:'desc', l:'شرح', t:'text'},
       {k:'category', l:'دسته', t:'select', opts:'category'},
       {k:'amount', l:'مبلغ (تومان)', t:'num'},
-      {k:'payer', l:'پرداخت‌کننده', t:'text', opt:true}
+      {k:'payer', l:'پرداخت از', t:'select', opts:'payer', def:'حساب لیلیزی', hint:'اگر لیلی یا بهناز از جیب خودشان داده‌اند، به طلبشان از لیلیزی اضافه می‌شود و از حساب لیلیزی کم نمی‌شود.'}
     ],
     card: o => ({ t:o.v.desc, m:o.v.date + ' · ' + o.v.category + (o.v.payer ? ' · ' + o.v.payer : ''), a:money(o.v.amount) }),
     text: o => [o.v.date, o.v.desc, o.v.category, o.v.payer].join(' ')
@@ -398,6 +398,9 @@ function productLabel(p){
   return p.v.code + ' — ' + [p.v.name, p.v.color, p.v.size].filter(Boolean).join(' ') + ' (موجودی ' + p.x.stock + ')';
 }
 
+// فهرست‌هایی که اگر سرور نفرستاد، از اینجا خوانده می‌شوند
+const LOCAL_OPTS = { payer: ['حساب لیلیزی', 'لیلی شخصی', 'بهناز شخصی'] };
+
 /* یک فیلد فرم (id جدا تا فیلدهای محصول جدید داخل فرم ورود کالا هم با همین ساخته شوند) */
 function fieldHtml(fd, val, editing, id){
   const opts = S.init.options;
@@ -406,8 +409,13 @@ function fieldHtml(fd, val, editing, id){
   if (fd.t === 'date') return lab +
     `<input class="in" id="${id}" value="${esc(val)}" inputmode="numeric" placeholder="1405/08/26" dir="ltr">
      <div class="chips"><button type="button" data-d="${S.init.today}">امروز</button><button type="button" data-d="${S.init.yesterday}">دیروز</button></div>`;
-  if (fd.t === 'select') return lab +
-    `<select class="in" id="${id}"><option value="">${fd.opt ? '—' : 'انتخاب کنید'}</option>${(opts[fd.opts]||[]).map(x => `<option ${x===val?'selected':''}>${esc(x)}</option>`).join('')}</select>` + hint;
+  if (fd.t === 'select') {
+    let list = (opts[fd.opts] && opts[fd.opts].length) ? opts[fd.opts].slice() : (LOCAL_OPTS[fd.opts] || []).slice();
+    if (!val && fd.def) val = fd.def;
+    if (val && !list.includes(val)) list.push(val);   // مقدار قدیمی که در فهرست نیست پاک نشود
+    return lab +
+    `<select class="in" id="${id}"><option value="">${fd.opt ? '—' : 'انتخاب کنید'}</option>${list.map(x => `<option ${x===val?'selected':''}>${esc(x)}</option>`).join('')}</select>` + hint;
+  }
   if (fd.t === 'product') {
     const p = (S.lists.product || []).find(p => p.v.code === val);
     return lab + `<input class="in" id="${id}" list="dlProducts" value="${esc(p ? productLabel(p) : val)}" placeholder="کد یا نام محصول را بنویسید">
