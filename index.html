@@ -618,6 +618,23 @@ async function refresh(){
 }
 
 /* ---------- حساب‌ها و گزارش ماهانه ---------- */
+// جمع‌های نهایی: بدهی لیلیزی قرمز ▼، طلب لیلیزی سبز ▲ (اگر علامت عوض شود رنگ هم برعکس می‌شود)
+function totalSpan(label, x){
+  const L = String(label||'');
+  if (/^مانده اولیه/.test(L)) return valSpan(x);
+  const debt = /^مانده.*بدهی|^جمع بدهی|^به مهین \+ لیلی/.test(L);
+  const cred = /^مانده.*طلب/.test(L);
+  if (!debt && !cred) return valSpan(x);
+  const s = String(x==null?'':x).trim();
+  let n;
+  if (s.startsWith('▼')) n = debt ? num(s) : -num(s);
+  else if (s.startsWith('▲')) n = debt ? -num(s) : num(s);
+  else n = num(x);
+  if (!n) return valSpan(x);
+  const owe = debt ? n > 0 : n < 0;   // لیلیزی بدهکار است؟
+  const t = (owe ? '▼ ' : '▲ ') + Math.abs(Math.round(n)).toLocaleString('en-US');
+  return `<span class="v ${owe ? 'neg' : 'pos'}" style="font-weight:700">${t}</span>`;
+}
 async function renderAccounts(){
   const v = $('view');
   v.innerHTML = '<div class="loading">در حال بارگذاری…</div>';
@@ -628,7 +645,7 @@ async function renderAccounts(){
         if (!row.length) return '';
         if (row.length === 1) return row[0].length > 40 ? `<div class="note">${esc(row[0])}</div>` : `<div class="row sec">${esc(row[0])}</div>`;
         const x = row[row.length-1];
-        return `<div class="row"><span>${esc(row[0])}</span>${valSpan(x)}</div>`;
+        return `<div class="row"><span>${esc(row[0])}</span>${totalSpan(row[0], x)}</div>`;
       }).join('')}</div>`).join('');
   } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
