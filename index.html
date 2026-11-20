@@ -49,6 +49,7 @@
   .row:last-child{border-bottom:0}
   .row .v{font-weight:600;direction:ltr;white-space:nowrap}
   .neg{color:var(--bad)}
+  .pos{color:var(--ok)}
   .sec{font-weight:700;color:var(--brand);padding:12px 0 4px;border-bottom:0}
   .note{font-size:12px;color:var(--muted);padding:6px 0}
 
@@ -161,7 +162,13 @@ const fmtX = x => {
   let m = s.match(/^\((.+)\)$/) || s.match(/^-(\d.*)$/);
   return m ? {t:'▼ −' + m[1], neg:true} : {t:s || '—', neg:false};
 };
-const valSpan = x => { const f = fmtX(x); return `<span class="v ${f.neg?'neg':''}">${esc(f.t)}</span>`; };
+const valSpan = x => {
+  const s = String(x==null?'':x).trim();
+  // جمع‌های نهایی در شیت با فلش آمده‌اند: ▼ بدهی (قرمز)، ▲ طلب (سبز)
+  if (s.startsWith('▼')) return `<span class="v neg" style="font-weight:700">${esc(s)}</span>`;
+  if (s.startsWith('▲')) return `<span class="v pos" style="font-weight:700">${esc(s)}</span>`;
+  const f = fmtX(x); return `<span class="v ${f.neg?'neg':''}">${esc(f.t)}</span>`;
+};
 // متن گزارش (مثل "1,234" یا "(1,234)" یا "-") → عدد
 const num = x => { if (typeof x === 'number') return x; const s = enDigits(x).trim(); if (!s || s==='-' || s==='—') return 0;
   const neg = /^\(.*\)$/.test(s) || /^-/.test(s); const n = Number(s.replace(/[^\d.]/g,'')) || 0; return neg ? -n : n; };
