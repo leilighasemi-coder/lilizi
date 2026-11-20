@@ -1,5 +1,5 @@
 // فقط ظاهر اپ ذخیره می‌شود؛ اطلاعات همیشه آنلاین از گوگل‌شیت خوانده و نوشته می‌شود.
-const CACHE = 'lilizi-v4';
+const CACHE = 'lilizi-v5';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
