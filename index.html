@@ -142,7 +142,7 @@
 const S = { pin:'', user:'', tab:'home', init:null, lists:{}, q:'' };
 const TABS = [
   ['home','خانه'], ['sale','فروش'], ['stockIn','ورود کالا'], ['expense','هزینه'],
-  ['payment','پرداخت'], ['product','موجودی'], ['accounts','حساب‌ها'], ['monthly','گزارش ماهانه']
+  ['payment','پرداخت'], ['product','موجودی'], ['accounts','حساب‌ها'], ['weekly','گزارش هفتگی'], ['monthly','گزارش ماهانه']
 ];
 
 const store = {
@@ -258,7 +258,7 @@ const F = {
   product: {
     title:'محصول',
     fields:[
-      {k:'code', l:'کد محصول', t:'text', hint:'مثل LZ-001 (Lilizi) یا BB-001 (BBandLili) — بعد از ثبت قابل تغییر نیست', lockOnEdit:true},
+      {k:'code', l:'کد محصول', t:'text', hint:'مثل LZ-003-XL یا BB-005-04 — بعد از ثبت قابل تغییر نیست', lockOnEdit:true},
       {k:'name', l:'نام مدل', t:'text'},
       {k:'brand', l:'برند', t:'select', opts:'brand'},
       {k:'size', l:'سایز', t:'text', opt:true},
@@ -324,6 +324,7 @@ async function render(){
   if (S.tab === 'home') return renderHome();
   if (S.tab === 'accounts') return renderAccounts();
   if (S.tab === 'monthly') return renderMonthly();
+  if (S.tab === 'weekly') return renderWeekly();
 
   v.innerHTML = '<div class="loading">در حال بارگذاری…</div>';
   try {
@@ -415,23 +416,50 @@ function fieldHtml(fd, val, editing, id){
 function newProdBox(){
   return `<button type="button" class="link-btn" id="npToggle" style="margin-top:8px">+ محصول جدید (در فهرست نیست)</button>
     <div class="np hidden" id="npBox"><div class="t">مشخصات محصول جدید</div>
-    ${F.product.fields.map(fd => fieldHtml(fd.k === 'code' ? {...fd, hint:'خودکار ساخته می‌شود و تکراری نیست؛ اگر بخواهید می‌توانید خودتان عوضش کنید.'} : fd, '', false, 'np_' + fd.k)).join('')}
+    ${F.product.fields.map(fd => fieldHtml(fd.k === 'code' ? {...fd, hint:'خودکار ساخته می‌شود: شمارهٔ مدل و رنگ + سایز (مثل LZ-003-XL). تکراری نیست و می‌توانید خودتان عوضش کنید.'} : fd, '', false, 'np_' + fd.k)).join('')}
     <div class="hint">با «ذخیره»، محصول تعریف می‌شود و همین تعداد هم برایش ثبت می‌شود.</div></div>`;
 }
 /* کد خودکار غیرتکراری: LZ-001 برای Lilizi و BB-001 برای BBandLili */
-function autoCode(brand){
+/* کد خودکار: LZ-شمارهٔ مدل-سایز (مثل LZ-003-XL، BB-005-04). هر مدل+رنگ یک شماره دارد؛ بدون سایز = فقط شماره */
+const norm = t => enDigits(t).replace(/‌/g,' ').trim().replace(/\s+/g,' ');
+function sizeTag(size){
+  const t = norm(size).toUpperCase();
+  if (!t || /بدون/.test(t)) return '';
+  if (/^\d+$/.test(t)) return t.padStart(2, '0');
+  return t.replace(/[^A-Z0-9]/g, '');
+}
+function autoCode(brand, name, color, size){
   const pre = brand === 'BBandLili' ? 'BB' : 'LZ';
-  const re = new RegExp('^' + pre + '-(\\d+)');
-  const used = new Set((S.lists.product || []).map(p => String(p.v.code).toUpperCase()));
-  let n = 0;
-  used.forEach(c => { const m = c.match(re); if (m) n = Math.max(n, Number(m[1])); });
-  let code;
-  do { n++; code = pre + '-' + String(n).padStart(3, '0'); } while (used.has(code));
+  const re = new RegExp('^' + pre + '-(\\d{3})');
+  const prods = S.lists.product || [];
+  const used = new Set(prods.map(p => String(p.v.code).toUpperCase()));
+  // اگر همین مدل و رنگ قبلاً ثبت شده، همان شماره
+  const same = name && prods.find(p => re.test(String(p.v.code).toUpperCase()) &&
+    norm(p.v.name) === norm(name) && norm(p.v.color) === norm(color));
+  let num;
+  if (same) num = String(same.v.code).toUpperCase().match(re)[1];
+  else {
+    let n = 0;
+    used.forEach(c => { const m = c.match(re); if (m) n = Math.max(n, Number(m[1])); });
+    num = String(n + 1).padStart(3, '0');
+  }
+  const tag = sizeTag(size);
+  let code = pre + '-' + num + (tag ? '-' + tag : '');
+  for (let k = 2; used.has(code); k++) code = pre + '-' + num + (tag ? '-' + tag : '') + '-' + k;
   return code;
 }
 function npAuto(force){
   const i = $('np_code'); if (!i) return;
-  if (force || i.dataset.auto === '1' || !i.value.trim()) { i.value = autoCode($('np_brand').value); i.dataset.auto = '1'; }
+  if (force || i.dataset.auto === '1' || !i.value.trim()) {
+    i.value = autoCode($('np_brand').value, $('np_name').value, $('np_color').value, $('np_size').value);
+    i.dataset.auto = '1';
+  }
+  const dup = (S.lists.product || []).find(p => $('np_name').value.trim() && norm(p.v.name) === norm($('np_name').value) &&
+    norm(p.v.color) === norm($('np_color').value) && sizeTag(p.v.size) === sizeTag($('np_size').value) && norm(p.v.size) !== '' === (norm($('np_size').value) !== ''));
+  const h = i.nextElementSibling;
+  if (h && h.classList.contains('hint')) h.innerHTML = dup
+    ? `<b style="color:var(--bad)">این محصول قبلاً با کد ${esc(dup.v.code)} ثبت شده؛ بهتر است «انصراف از محصول جدید» را بزنید و آن را از فهرست انتخاب کنید.</b>`
+    : 'خودکار ساخته می‌شود: شمارهٔ مدل و رنگ + سایز (مثل LZ-003-XL). تکراری نیست و می‌توانید خودتان عوضش کنید.';
 }
 function npOn(){ const b = $('npBox'); return !!b && !b.classList.contains('hidden'); }
 function setNp(on, code){
@@ -494,6 +522,7 @@ function openForm(form, row){
   if ($('npToggle')) {
     $('npToggle').onclick = () => setNp(!npOn());
     $('np_brand').onchange = () => { npBrand(); npAuto(); };
+    ['np_name','np_color','np_size'].forEach(id => $(id).addEventListener('input', () => npAuto()));
     $('np_code').addEventListener('input', () => { const i = $('np_code'), pos = i.selectionStart; i.value = enDigits(i.value).toUpperCase(); i.dataset.auto = '0'; i.setSelectionRange(pos, pos); });
     $('np_code').addEventListener('blur', () => { if (!$('np_code').value.trim()) npAuto(true); });
   }
@@ -630,6 +659,99 @@ async function renderMonthly(){
       <div class="card an" id="mAn"></div>`;
     $('mSel').onchange = () => draw($('mSel').value);
     draw(months.includes(cur) ? cur : months[0]);
+  } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+/* ---------- گزارش هفتگی ---------- */
+// مثل شیت: روز سال از اول فروردین، هفته = سقف(روز/۷)
+const doyOf = d => { const [y,m,dd] = enDigits(d).split('/').map(Number); if (!y||!m||!dd) return null;
+  return {y, doy: m <= 6 ? (m-1)*31 + dd : 186 + (m-7)*30 + dd}; };
+const weekOf = d => { const o = doyOf(d); return o ? o.y + '-' + String(Math.ceil(o.doy/7)).padStart(2,'0') : ''; };
+const dateOf = (y, doy) => { let m, d; if (doy <= 186) { m = Math.ceil(doy/31); d = doy - (m-1)*31; } else { m = 7 + Math.ceil((doy-186)/30) - 1; d = doy - 186 - (m-7)*30; }
+  return y + '/' + String(m).padStart(2,'0') + '/' + String(d).padStart(2,'0'); };
+const weekRange = w => { const [y, n] = w.split('-').map(Number); const a = (n-1)*7 + 1; return [dateOf(y, a), dateOf(y, Math.min(a+6, 365))]; };
+const prevWeek = w => { const [y, n] = w.split('-').map(Number); return n > 1 ? y + '-' + String(n-1).padStart(2,'0') : (y-1) + '-52'; };
+const MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+const dayLabel = d => { const [, m, dd] = d.split('/').map(Number); return dd + ' ' + MONTHS[m-1]; };
+
+async function renderWeekly(){
+  const v = $('view');
+  v.innerHTML = '<div class="loading">در حال بارگذاری…</div>';
+  try {
+    const [sr, ir] = await Promise.all([call('list',{form:'sale'}), call('list',{form:'stockIn'}).catch(() => ({rows:[]}))]);
+    const sales = sr.rows || [], ins = ir.rows || [];
+    const prods = {}; (S.lists.product || []).forEach(p => prods[p.v.code] = p);
+    // بهای تمام‌شدهٔ هر عدد (میانگین وزنی پارچه + دوخت از ورود کالا)
+    const cst = {};
+    ins.forEach(o => { const c = num(o.v.fabric) + num(o.v.sewing), q = num(o.v.qty) || 1; if (!c) return;
+      const a = cst[o.v.code] || (cst[o.v.code] = {s:0, q:0}); a.s += c*q; a.q += q; });
+    const RATE = 0.3;
+    const rec = sales.map(o => {
+      const p = prods[o.v.code], brand = (p && p.v.brand) || 'Lilizi', qty = num(o.v.qty) || 1, amt = num(o.x && o.x.amount);
+      const mah = brand === 'BBandLili' ? num(p && p.v.mahin) * qty : 0;
+      const share = amt * (1 - RATE) - mah;
+      const cost = brand === 'BBandLili' ? 0 : (cst[o.v.code] ? cst[o.v.code].s / cst[o.v.code].q * qty : 0);
+      return {o, p, brand, qty, amt, share, gross: share - cost, w: weekOf(o.v.date), doy: (doyOf(o.v.date)||{}).doy,
+        model: p ? [p.v.name, p.v.color].filter(Boolean).join(' ') : (o.x && o.x.name) || o.v.code};
+    });
+    const cur = weekOf(S.init.today);
+    const weeks = [...new Set([cur, ...rec.map(r => r.w).filter(Boolean)])].sort().reverse();
+
+    const draw = w => {
+      const R = rec.filter(r => r.w === w), P = rec.filter(r => r.w === prevWeek(w));
+      const sum = (A, k) => A.reduce((s, r) => s + r[k], 0);
+      const [d1, d2] = weekRange(w);
+      const delta = (a, b) => b && a === b ? '<div class="s">مثل هفتهٔ قبل</div>' : b ? `<div class="s">${a >= b ? '▲' : '▼'} ${Math.abs(Math.round((a-b)/b*100))}٪ نسبت به هفتهٔ قبل</div>` : `<div class="s">هفتهٔ قبل: ${fmtN(b)}</div>`;
+      const stat = (l, val, prev, extra) => `<div class="card stat"><div class="l">${l}</div><div class="v">${fmtN(val)}</div>${extra||''}${delta(val, prev)}</div>`;
+      // روزهای هفته
+      const [y, n] = w.split('-').map(Number), a = (n-1)*7 + 1;
+      const days = [...Array(7)].map((_, i) => { const dd = a + i, X = R.filter(r => r.doy === dd); return {d: dateOf(y, dd), q: sum(X,'qty'), m: sum(X,'amt')}; });
+      const mx = Math.max(1, ...days.map(d => d.m));
+      // پرفروش‌ها بر اساس مدل
+      const byM = {}; R.forEach(r => { const k = r.model; (byM[k] = byM[k] || {q:0, m:0, b:r.brand}); byM[k].q += r.qty; byM[k].m += r.amt; });
+      const top = Object.entries(byM).sort((x, y2) => y2[1].q - x[1].q || y2[1].m - x[1].m);
+      const brand = b => { const X = R.filter(r => (b === 'BBandLili') === (r.brand === 'BBandLili')); return {q: sum(X,'qty'), m: sum(X,'amt'), s: sum(X,'share')}; };
+      const L = brand('Lilizi'), B = brand('BBandLili');
+      // موجودی: فروش‌رفته‌های این هفته که تمام شده یا رو به اتمام‌اند
+      const soldCodes = [...new Set(R.map(r => r.o.v.code))];
+      const alerts = soldCodes.map(c => prods[c]).filter(p => p && (p.x.status === 'تمام شد' || p.x.status === 'رو به اتمام'));
+      const outAll = (S.lists.product || []).filter(p => p.x.status === 'تمام شد');
+
+      $('wBody').innerHTML = `
+        <div class="note">${esc(d1)} تا ${esc(d2)}${w === cur ? ' · هفتهٔ جاری (هنوز تمام نشده)' : ''}</div>
+        <div class="grid">
+          ${stat('تعداد لباس فروخته‌شده', sum(R,'qty'), sum(P,'qty'))}
+          ${stat('مبلغ فروش', sum(R,'amt'), sum(P,'amt'))}
+          ${stat('درآمد لیلیزی', sum(R,'share'), sum(P,'share'), '<div class="s">بعد از کسر ۳۰٪ همدانی و سهم مهین</div>')}
+          ${stat('سود ناخالص', sum(R,'gross'), sum(P,'gross'), '<div class="s">درآمد منهای بهای تمام‌شده</div>')}
+        </div>
+        <h2>به تفکیک برند</h2>
+        <div class="card">
+          <div class="row"><span>Lilizi · ${L.q} لباس</span><span class="v">${fmtN(L.m)}</span></div>
+          <div class="row"><span>BBandLili · ${B.q} لباس</span><span class="v">${fmtN(B.m)}</span></div>
+        </div>
+        <h2>روزهای هفته</h2>
+        <div class="card">${days.map((d, i) => `<div class="row" style="align-items:center">
+          <span style="flex:0 0 92px">${dayLabel(d.d)}</span>
+          <span style="flex:1;height:10px;background:var(--brand-soft);border-radius:6px;overflow:hidden"><span style="display:block;height:100%;width:${Math.round(d.m/mx*100)}%;background:var(--brand)"></span></span>
+          <span class="v" style="flex:0 0 96px;text-align:left">${d.q ? d.q + ' · ' + fmtN(d.m) : '—'}</span></div>`).join('')}</div>
+        <h2>پرفروش‌ترین مدل‌ها</h2>
+        <div class="card">${top.length ? top.slice(0, 8).map(([k, x]) => `<div class="row"><span>${esc(k)} <span style="color:var(--muted);font-size:12px">${x.b === 'BBandLili' ? 'BB' : 'LZ'}</span></span><span class="v" style="direction:rtl">${x.q} عدد · <span dir="ltr">${fmtN(x.m)}</span></span></div>`).join('') : '<div class="note">این هفته فروشی ثبت نشده.</div>'}</div>
+        <h2>فروش‌های این هفته</h2>
+        <div class="card">${R.length ? R.slice().sort((x, y2) => (y2.doy||0) - (x.doy||0)).map(r => `<div class="row"><span>${esc((r.o.x && r.o.x.name) || r.model)} × ${r.qty}<br><span style="color:var(--muted);font-size:12px">${esc(r.o.v.date)} · ${esc(r.o.v.code)}</span></span><span class="v">${fmtN(r.amt)}</span></div>`).join('') : '<div class="note">—</div>'}</div>
+        <h2>موجودی</h2>
+        <div class="card">
+          ${alerts.length ? '<div class="row sec">از فروش‌رفته‌های این هفته</div>' + alerts.map(p => `<div class="row"><span>${esc(productLabel(p).split(' (')[0])}</span><span class="pill ${p.x.status === 'تمام شد' ? 'out' : 'low'}">${esc(p.x.status)} · ${p.x.stock}</span></div>`).join('') : ''}
+          <div class="row"><span>کل کدهای تمام‌شده</span><span class="v">${outAll.length}</span></div>
+          <div class="note">${outAll.map(p => esc([p.v.name, p.v.color, p.v.size].filter(Boolean).join(' '))).join('، ') || '—'}</div>
+        </div>
+        <div class="note">سهم همدانی ۳۰٪ فرض شده. بهای تمام‌شده از هزینهٔ پارچه و دوخت در «ورود کالا» است؛ لباس‌هایی که هزینه ندارند صفر حساب شده‌اند.</div>`;
+    };
+    v.innerHTML = `<h2>گزارش هفتگی</h2>
+      <select class="in" id="wSel" style="margin-bottom:10px">${weeks.map(w => { const [a1, a2] = weekRange(w); return `<option value="${w}">هفتهٔ ${esc(w.split('-')[1])} · ${esc(a1.slice(5))} تا ${esc(a2.slice(5))}${w === cur ? ' (جاری)' : ''}</option>`; }).join('')}</select>
+      <div id="wBody"></div>`;
+    $('wSel').onchange = () => draw($('wSel').value);
+    draw(weeks[0]);
   } catch (e) { v.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
